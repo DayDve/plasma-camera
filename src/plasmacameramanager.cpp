@@ -8,6 +8,9 @@
 #include "plasmacamera/path.h"
 #include "plasmacameramanager.h"
 
+#include <QGuiApplication>
+#include <QScreen>
+
 #include <exiv2/exiv2.hpp>
 #include <memory>
 
@@ -508,7 +511,20 @@ void PlasmaCameraManager::processViewfinderFrame(const QImage &image)
     // Do software rotation
     // From testing, most drivers don't seem to implement hardware orientation correctly (CameraConfiguration::orientation),
     // it either isn't supported or just crashes. So we will just use software rotation for best hardware compatibility.
-    switch (m_plasmaCamera->softwareRotationDegrees()) {
+    // The window rotates together with the screen (e.g. auto-rotation on Plasma Mobile),
+    // so compensate the sensor rotation by the current screen rotation.
+    int rotation = m_plasmaCamera->softwareRotationDegrees();
+    if (const QScreen *screen = QGuiApplication::primaryScreen()) {
+        // On Wayland the native orientation is unknown (PrimaryOrientation), assume a portrait panel
+        Qt::ScreenOrientation native = screen->nativeOrientation();
+        if (native == Qt::PrimaryOrientation) {
+            native = Qt::PortraitOrientation;
+        }
+        rotation += screen->angleBetween(screen->orientation(), native);
+    }
+    rotation = ((rotation % 360) + 360) % 360;
+
+    switch (rotation) {
     case 0:
         break;
     case 90:
